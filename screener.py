@@ -134,7 +134,7 @@ def main():
         if len(past) >= 5:
             avg_vol = statistics.mean(p["volume"] for p in past[-20:])
             if avg_vol and r["volume"] >= VOL_SPIKE * avg_vol and r["value"] >= MIN_VALUE_MN:
-                spikes.append((code, r["category"], r["ltp"], pct(r), f"{r['volume'] / avg_vol:.1f}x"))
+                spikes.append((r["volume"] / avg_vol, code, r["category"], r["ltp"], pct(r)))
         closes = [p["close"] or p["ltp"] for p in past] + [r["close"] or r["ltp"]]
         if len(closes) > MA_LONG:
             s_now, l_now = statistics.mean(closes[-MA_SHORT:]), statistics.mean(closes[-MA_LONG:])
@@ -205,7 +205,8 @@ def main():
                f"MA crossover/RSI er jonno {MA_LONG + 1}+ trading din er data lagbe._", ""]
     else:
         md += ["### Volume spike (recent average er 3x+)",
-               fmt_table(["Code", "Cat", "LTP", "Change", "Vol ratio"], spikes[:10]), "",
+               fmt_table(["Code", "Cat", "LTP", "Change", "Vol ratio"],
+                         [(*s[1:], f"{s[0]:.1f}x") for s in sorted(spikes, reverse=True)[:10]]), "",
                f"### MA crossover ({MA_SHORT}-day, {MA_LONG}-day er upore uthlo, A-category)",
                fmt_table(["Code", "LTP", "Change", f"MA{MA_SHORT}", f"MA{MA_LONG}"], ma_cross[:10]), "",
                "### Oversold (RSI < 30, A-category)",
