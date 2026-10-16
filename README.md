@@ -14,6 +14,13 @@ Protidin DSE market close er por official data (dse.com.bd) theke ekta screener 
 - **dse.com.bd** (official): protidin er price, volume, category, sector, news
 - **DSE Intelligence (stockchartbd.com)**: P/E, EPS, health warning score, ar purono price history (backfill)
 
+## Long-term history (1999 theke aj porjonto)
+`python3 longterm.py SQURPHARMA --yearly` chalale `exports/SQURPHARMA.csv` e 1999 theke ajker sob daily price ashe, ar ekta bochor-bhittik summary dekhay.
+- 1999 - Apr 2025: "Dhaka Stock Exchange Historical Data (1999-2025)", Mendeley Data, doi:10.17632/5mww8rb9td.1, CC BY 4.0 (`data/dse_1999_2025.csv.gz`)
+- Aug 2024 - aj: DSE Intelligence (stockchartbd.com)
+
+⚠️ Price gulo bonus/right share ba face value change er jonno **adjust kora na**. Jemon 2011 e face value Tk 100 theke Tk 10 howay price ~90% kome geche, eta asole crash na.
+
 ## History backfill (ekbar-i)
 Technical signal er jonno history lage. Ekbar **Actions → History backfill (one-time) → Run workflow** chalale
 ~60 trading din er history bhore jabe (~3.5 ghonta, API rate limit er karone).
