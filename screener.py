@@ -9,7 +9,9 @@ predict prices.
 Usage: python3 screener.py [--snapshot saved.json] [--force]
 """
 import argparse
+import csv
 import datetime as dt
+import io
 import json
 import statistics
 import urllib.request
@@ -17,6 +19,7 @@ from collections import defaultdict
 from pathlib import Path
 
 BASE = "https://www.dse.com.bd"
+FUNDAMENTALS_URL = "https://stockchartbd.com/api/export.php?type=fundamentals"
 UA = {"User-Agent": "Mozilla/5.0 (dse-screener)"}
 ROOT = Path(__file__).resolve().parent
 HIST = ROOT / "history"
@@ -27,12 +30,39 @@ MIN_VALUE_MN = 5.0      # ignore thinly traded shares (turnover below Tk 5 mn)
 VOL_SPIKE = 3.0         # volume >= 3x its recent average
 MA_SHORT, MA_LONG = 5, 20
 RSI_PERIOD = 14
+FUND_HDR = ["P/E", "EPS", "Health"]
 
 
 def fetch(path):
     req = urllib.request.Request(BASE + path, headers=UA)
     with urllib.request.urlopen(req, timeout=60) as r:
         return json.load(r)
+
+
+def load_fundamentals():
+    """{symbol: row} with P/E, EPS and health score from DSE Intelligence (stockchartbd.com)."""
+    try:
+        req = urllib.request.Request(FUNDAMENTALS_URL, headers=UA)
+        with urllib.request.urlopen(req, timeout=60) as r:
+            text = r.read().decode("utf-8-sig")
+        return {row["symbol"]: row for row in csv.DictReader(io.StringIO(text))}
+    except Exception as e:
+        print(f"fundamentals unavailable: {e}")
+        return {}
+
+
+def fund_cols(fund, code):
+    """(P/E, EPS, health) cells for a report row; a loss or high-risk share gets a warning mark."""
+    f = fund.get(code)
+    if not f:
+        return ("-", "-", "-")
+    eps = f["eps"] or "-"
+    if eps != "-" and float(eps) < 0:
+        eps = f"⚠️ {eps}"
+    band = f["health_band"] or "-"
+    if band == "High risk":
+        band = "⚠️ High risk"
+    return (f["pe"] or "-", eps, band)
 
 
 def load_rows(snap):
@@ -95,6 +125,7 @@ def main():
         return
     (HIST / f"{day}.json").write_text(json.dumps(rows))
     hist = load_history(day)
+    fund = load_fundamentals()
     days_of_history = len({f.stem for f in HIST.glob("*.json")})
 
     m = snap["market"]
@@ -134,16 +165,16 @@ def main():
         if len(past) >= 5:
             avg_vol = statistics.mean(p["volume"] for p in past[-20:])
             if avg_vol and r["volume"] >= VOL_SPIKE * avg_vol and r["value"] >= MIN_VALUE_MN:
-                spikes.append((r["volume"] / avg_vol, code, r["category"], r["ltp"], pct(r)))
+                spikes.append((r["volume"] / avg_vol, code, r["category"], r["ltp"], pct(r), *fund_cols(fund, code)))
         closes = [p["close"] or p["ltp"] for p in past] + [r["close"] or r["ltp"]]
         if len(closes) > MA_LONG:
             s_now, l_now = statistics.mean(closes[-MA_SHORT:]), statistics.mean(closes[-MA_LONG:])
             s_prev, l_prev = statistics.mean(closes[-MA_SHORT - 1:-1]), statistics.mean(closes[-MA_LONG - 1:-1])
             if s_prev <= l_prev and s_now > l_now and r["category"] == "A":
-                ma_cross.append((code, r["ltp"], pct(r), f"{s_now:.2f}", f"{l_now:.2f}"))
+                ma_cross.append((code, r["ltp"], pct(r), f"{s_now:.2f}", f"{l_now:.2f}", *fund_cols(fund, code)))
         v = rsi(closes)
         if v is not None and v < 30 and r["category"] == "A" and r["value"] >= MIN_VALUE_MN:
-            oversold.append((code, r["ltp"], pct(r), f"{v:.0f}"))
+            oversold.append((code, r["ltp"], pct(r), f"{v:.0f}", *fund_cols(fund, code)))
 
     # 6. News for the day
     try:
@@ -164,9 +195,10 @@ def main():
         for code in WATCHLIST.read_text().split():
             r = by_code.get(code.upper())
             if r:
-                watch.append((r["code"], r["category"], r["ltp"], pct(r), r["high"], r["low"], f"{r['value']:.1f}"))
+                watch.append((r["code"], r["category"], r["ltp"], pct(r), r["high"], r["low"], f"{r['value']:.1f}",
+                              *fund_cols(fund, r["code"])))
             else:
-                watch.append((code.upper(), "-", "trade hoy nai", "", "", "", ""))
+                watch.append((code.upper(), "-", "trade hoy nai", "", "", "", "", "", "", ""))
 
     md = [f"# DSE Daily Screener: {day:%d %b %Y}",
           "",
@@ -180,10 +212,11 @@ def main():
           ""]
     if watch:
         md += ["## Tomar watchlist",
-               fmt_table(["Code", "Cat", "LTP", "Change", "High", "Low", "Value (mn)"], watch), ""]
+               fmt_table(["Code", "Cat", "LTP", "Change", "High", "Low", "Value (mn)", *FUND_HDR], watch), ""]
     md += ["## 🟢 Momentum watch (A-category, +3% er beshi, high er kache close, liquid)",
-           fmt_table(["Code", "Sector", "LTP", "Change", "Value (mn)"],
-                     [(r["code"], r["sector"], r["ltp"], pct(r), f"{r['value']:.1f}") for r in momentum]),
+           fmt_table(["Code", "Sector", "LTP", "Change", "Value (mn)", *FUND_HDR],
+                     [(r["code"], r["sector"], r["ltp"], pct(r), f"{r['value']:.1f}", *fund_cols(fund, r["code"]))
+                      for r in momentum]),
            "",
            "## 🔴 Speculative / risky movers (Z-category ba Tk 10 er niche, +5% er beshi)",
            "_Egulo te manipulation er jhuki beshi. Shabdhan._",
@@ -205,17 +238,19 @@ def main():
                f"MA crossover/RSI er jonno {MA_LONG + 1}+ trading din er data lagbe._", ""]
     else:
         md += ["### Volume spike (recent average er 3x+)",
-               fmt_table(["Code", "Cat", "LTP", "Change", "Vol ratio"],
-                         [(*s[1:], f"{s[0]:.1f}x") for s in sorted(spikes, reverse=True)[:10]]), "",
+               fmt_table(["Code", "Cat", "LTP", "Change", "Vol ratio", *FUND_HDR],
+                         [(*s[1:5], f"{s[0]:.1f}x", *s[5:]) for s in sorted(spikes, reverse=True)[:10]]), "",
                f"### MA crossover ({MA_SHORT}-day, {MA_LONG}-day er upore uthlo, A-category)",
-               fmt_table(["Code", "LTP", "Change", f"MA{MA_SHORT}", f"MA{MA_LONG}"], ma_cross[:10]), "",
+               fmt_table(["Code", "LTP", "Change", f"MA{MA_SHORT}", f"MA{MA_LONG}", *FUND_HDR], ma_cross[:10]), "",
                "### Oversold (RSI < 30, A-category)",
-               fmt_table(["Code", "LTP", "Change", "RSI"], oversold[:10]), ""]
+               fmt_table(["Code", "LTP", "Change", "RSI", *FUND_HDR], oversold[:10]), ""]
     md += ["## 📰 Dividend declarations"]
     md += [f"- **{n['code']}**: {n['body'][:300]}" for n in dividends] or ["_Nai._"]
     md += ["", "## 📰 Price-sensitive news (prothom 15ta)"]
     md += [f"- **{n['code']}**: {n['summary']}" for n in sensitive[:15]] or ["_Nai._"]
-    md += ["", f"_Source: dse.com.bd official data, trade time {tot['tradeTime']}._"]
+    md += ["", f"_Source: dse.com.bd official data, trade time {tot['tradeTime']}. "
+           "P/E, EPS ar Health: DSE Intelligence (stockchartbd.com), source dsebd.org. "
+           "⚠️ = loss-making ba high-risk share._"]
 
     out = REPORTS / f"{day}.md"
     out.write_text("\n".join(md), encoding="utf-8")

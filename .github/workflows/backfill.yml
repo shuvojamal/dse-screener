@@ -1,0 +1,34 @@
+name: History backfill (one-time)
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Trading days per share"
+        default: "60"
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Backfill history (about 3.5 hours, API allows 120 requests/hour)
+        run: python3 backfill.py --limit "${{ inputs.limit }}"
+
+      - name: Commit history
+        run: |
+          git config user.name "dse-screener-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add history
+          git commit -m "Backfill price history" || exit 0
+          git pull --rebase
+          git push
