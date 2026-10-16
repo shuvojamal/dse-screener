@@ -1,0 +1,47 @@
+name: DSE daily screener
+
+on:
+  schedule:
+    # 09:45 UTC = 3:45 PM Bangladesh time, Sunday-Thursday (after DSE closes)
+    - cron: "45 9 * * 0-4"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run screener
+        id: run
+        run: |
+          out=$(python3 screener.py)
+          echo "$out"
+          if [[ "$out" == *.md ]]; then
+            echo "report=reports/$(basename "$out")" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit history and report
+        if: steps.run.outputs.report != ''
+        run: |
+          git config user.name "dse-screener-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add history reports
+          git commit -m "Daily report $(basename ${{ steps.run.outputs.report }} .md)"
+          git push
+
+      - name: Open issue (sends email notification)
+        if: steps.run.outputs.report != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          day=$(basename ${{ steps.run.outputs.report }} .md)
+          gh issue create --title "DSE report $day" --body-file "${{ steps.run.outputs.report }}"
