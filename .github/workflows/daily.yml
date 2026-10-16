@@ -2,8 +2,9 @@ name: DSE daily screener
 
 on:
   schedule:
-    # 09:45 UTC = 3:45 PM Bangladesh time, Sunday-Thursday (after DSE closes)
-    - cron: "45 9 * * 0-4"
+    # 09:45 UTC = 3:45 PM Bangladesh time, every day: special trading days (e.g. a
+    # Saturday) are covered, and the script exits without a report when DSE was closed
+    - cron: "45 9 * * *"
   workflow_dispatch: {}
 
 permissions:

@@ -5,7 +5,7 @@ Protidin DSE market close er por official data (dse.com.bd) theke ekta screener 
 > ⚠️ Eta research er jonno shortlist, buy/sell recommendation na.
 
 ## Kivabe kaj kore
-- GitHub Actions protidin **Sunday-Thursday, 3:45 PM (BD time)** e `screener.py` chalay.
+- GitHub Actions protidin **3:45 PM (BD time)** e `screener.py` chalay (special Saturday trading day-o dhora pore).
 - Sob share er din-sheshe data `history/` e save hoy. Ei data diye volume spike, MA crossover ar RSI hisab hoy.
 - Report `reports/YYYY-MM-DD.md` e save hoy, ar ekta GitHub Issue khule (email notification ashe).
 - Chhutir din ba market bondho thakle kichu hoy na.
