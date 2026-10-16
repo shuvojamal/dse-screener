@@ -14,6 +14,11 @@ Protidin DSE market close er por official data (dse.com.bd) theke ekta screener 
 - **dse.com.bd** (official): protidin er price, volume, category, sector, news
 - **DSE Intelligence (stockchartbd.com)**: P/E, EPS, health warning score, ar purono price history (backfill)
 
+## Long-term dividend screener
+`python3 dividend.py` 5 bochorer EPS ar dividend dekhe company gulo ke 100-er moddhe score dey, ar `reports/dividend.md` banay.
+Protimash er 1 tarikh e GitHub Actions nijei chalay ar issue khule (email ashe).
+Score: protibochor dividend (25), protibochor profit (15), dividend kome nai (10), EPS growth (15), ajker yield (20), payout 80% er niche (10), P/E 15 ba kom (5).
+
 ## Long-term history (1999 theke aj porjonto)
 `python3 longterm.py SQURPHARMA --yearly` chalale `exports/SQURPHARMA.csv` e 1999 theke ajker sob daily price ashe, ar ekta bochor-bhittik summary dekhay.
 - 1999 - Apr 2025: "Dhaka Stock Exchange Historical Data (1999-2025)", Mendeley Data, doi:10.17632/5mww8rb9td.1, CC BY 4.0 (`data/dse_1999_2025.csv.gz`)

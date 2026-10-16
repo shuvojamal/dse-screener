@@ -1,0 +1,39 @@
+name: Monthly dividend screener
+
+on:
+  schedule:
+    # 1st of every month, 10:15 UTC = 4:15 PM Bangladesh time
+    - cron: "15 10 1 * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  dividend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Score companies (refreshes cached financials older than 30 days)
+        run: python3 dividend.py
+
+      - name: Commit report and cache
+        run: |
+          git config user.name "dse-screener-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/dividend.md data/financials
+          git commit -m "Monthly dividend screener $(date +%Y-%m)" || exit 0
+          git pull --rebase
+          git push
+
+      - name: Open issue (sends email notification)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue create --title "Dividend screener $(date +%Y-%m)" --body-file reports/dividend.md
